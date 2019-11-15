@@ -5,30 +5,102 @@ import sys
 
 class CPU:
     """Main CPU class."""
-    register = [0] * 8
-    ram = [0] * 256
-    pc = 0
-    SP = 7
-    halted = False
-    equal = [0] * 8
 
-    L = 0
-    G = 0
-    E = 0
-    register[SP] = 0xf4
-
-    HALT = 1
-    LDI = 130
-    MUL = 162
-    PRN = 71
-    CMP = 167
-    JEQ = 85
-    JMP = 84
-    JNE = 86
+    get_command = {
+        1: 'HLT',
+        130: 'LDI',
+        71: 'PRN',
+        167: 'CMP',
+        85: 'JEQ',
+        84: 'JMP',
+        86: 'JNE'
+    }
 
     def __init__(self):
         """Construct a new CPU."""
+        self.ram = [0] * 256
+        self.pc = 0
+        self.halted = False
+        self.L = 0
+        self.G = 0
+        self.E = 0
+        self.register = [0] * 8
+        self.SP = 7
+        self.register[self.SP] = 0xf4
+        self.branch_table = {
+            'HLT': self.handle_halt,
+            'LDI': self.handle_ldi,
+            'PRN': self.handle_prn,
+            'CMP': self.handle_cmp,
+            'JEQ': self.handle_jeq,
+            'JMP': self.handle_jmp,
+            'JNE': self.handle_jne
+            }
+
+    def handle_halt(self):
+        self.halted = True
+        self.pc += 1
+
+    def handle_ldi(self):
+        reg_num = self.ram[self.pc + 1]
+        value = self.ram[self.pc + 2]
+        self.register[reg_num] = value
+        self.pc += 3
+
+    def handle_prn(self):
+        print(self.register[self.ram[self.pc + 1]])
+        self.pc += 2
         pass
+
+    def handle_cmp(self):
+        index1 = self.ram[self.pc + 1]
+        index2 = self.ram[self.pc + 2]
+
+        first = self.register[index1]
+        second = self.register[index2]
+        if first < second:
+            self.L = 1
+            self.G = 0
+            self.E = 0
+        elif first > second:
+            self.L = 1
+            self.G = 1
+            self.E = 0
+
+        elif first == second:
+            self.L = 0
+            self.G = 0
+            self.E = 1
+
+        else:
+            print("ERROR")
+            exit()
+        self.pc += 3
+
+    def handle_jeq(self):
+        if self.E == 1:
+            goto = self.ram[self.pc + 1]
+            self.pc = self.register[goto]
+
+        elif self.E == 0:
+            self.pc += 2
+        else:
+            print("ERROR")
+            exit()
+
+    def handle_jmp(self):
+        goto = self.ram[self.pc + 1]
+        self.pc = self.register[goto]
+
+    def handle_jne(self):
+        if self.E == 0:
+            goto = self.ram[self.pc + 1]
+            self.pc = self.register[goto]
+        elif self.E != 0:
+            self.pc += 2
+
+        else:
+            self.pc += 2
 
     def load(self, program=None):
         """Load a program into memory."""
@@ -88,62 +160,5 @@ class CPU:
         """Run the CPU."""
         while not self.halted:
             instruction = self.ram[self.pc]
-            if instruction == self.LDI:
-                reg_num = self.ram[self.pc + 1]
-                value = self.ram[self.pc + 2]
-                self.register[reg_num] = value
-                self.pc += 3
-            elif instruction == self.CMP:
-                index1 = self.ram[self.pc + 1]
-                index2 = self.ram[self.pc + 2]
-
-                first = self.register[index1]
-                second = self.register[index2]
-                if first < second:
-                    self.L = 1
-                    self.G = 0
-                    self.E = 0
-                elif first > second:
-                    self.L = 1
-                    self.G = 1
-                    self.E = 0
-
-                elif first == second:
-                    self.L = 0
-                    self.G = 0
-                    self.E = 1
-
-                else:
-                    print("ERROR")
-                    exit()
-                self.pc += 3
-            elif instruction == self.JEQ:
-                if self.E == 1:
-                    goto = self.ram[self.pc + 1]
-                    self.pc = self.register[goto]
-
-                elif self.E == 0:
-                    self.pc += 2
-                else:
-                    print("ERROR")
-                    exit()
-            elif instruction == self.JNE:
-                if self.E == 0:
-                    goto = self.ram[self.pc + 1]
-                    self.pc = self.register[goto]
-                elif self.E != 0:
-                    self.pc += 2
-
-                else:
-                    self.pc += 2
-
-            elif instruction == self.JMP:
-                goto = self.ram[self.pc + 1]
-                self.pc = self.register[goto]
-
-            elif instruction == self.PRN:
-                print(self.register[self.ram[self.pc + 1]])
-                self.pc += 2
-            elif instruction == self.HALT:
-                self.halted = True
-                self.pc += 1
+            action = self.get_command[instruction]
+            self.branch_table[action]()
